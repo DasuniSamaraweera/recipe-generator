@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Recipe Generator</title>
+  <script src="https://cdn.jsdelivr.net/npm/react@18.2.0/umd/react.production.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/react-dom@18.2.0/umd/react-dom.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Comic+Neue:wght@400;700&display=swap" rel="stylesheet">
+  <style>
+    body {
+      background: url('https://i.pinimg.com/736x/78/8a/3a/788a3ae61aaba2c2341f3ca2ae1cb12e.jpg') no-repeat center center fixed;
+      background-size: cover;
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      font-family: 'Comic Neue', cursive;
+      margin: 0;
+      padding: 20px;
+      box-sizing: border-box;
+    }
+    .container {
+      background: rgba(255, 250, 244, 0.9);
+      border-radius: 15px;
+      box-shadow: 0 10px 20px rgba(0,0,0,0.2);
+      padding: 30px;
+      max-width: 800px;
+      width: 100%;
+    }
+    .recipe-card {
+      background: #fff5f5;
+      border: 3px solid #f4c4f3;
+      border-radius: 10px;
+      padding: 20px;
+      margin-top: 20px;
+      box-shadow: 3px 3px 10px rgba(0,0,0,0.1);
+      position: relative;
+      overflow: hidden;
+    }
+    .sticker {
+      position: absolute;
+      width: 50px;
+      height: 50px;
+      cursor: grab;
+      transition: transform 0.2s ease;
+      user-select: none;
+    }
+    .sticker:active {
+      cursor: grabbing;
+    }
+    .sticker:hover {
+      transform: scale(1.1);
+    }
+    button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+    .ribbon {
+      position: absolute;
+      top: 10px;
+      right: -15px;
+      background: #ffccd5;
+      padding: 5px 20px;
+      transform: rotate(45deg);
+      box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+      font-family: 'Comic Neue', cursive;
+      font-size: 1.2rem;
+      font-weight: 700;
+      color: #d53f8c;
+    }
+    input, textarea {
+      background: #fff5f5;
+      border: 2px solid #f4c4f3;
+      font-family: 'Comic Neue', cursive;
+      transition: border-color 0.3s ease;
+      resize: vertical;
+    }
+    input:focus, textarea:focus {
+      border-color: #f687b3;
+      outline: none;
+    }
+    button {
+      background-color: #FFC1B3;
+      color: white;
+      transition: background-color 0.3s ease, transform 0.2s ease;
+    }
+    button:hover:not(:disabled) {
+      background-color: #FFAE9C;
+      transform: translateY(-2px);
+    }
+    button:active:not(:disabled) {
+      background-color: #FF9B87;
+    }
+    .recipe-image {
+      max-width: 200px;
+      max-height: 200px;
+      object-fit: cover;
+      border: 3px solid #f4c4f3;
+      border-radius: 10px;
+      box-shadow: 3px 3px 10px rgba(0,0,0,0.1);
+      margin-bottom: 1rem;
+    }
+    @media (max-width: 640px) {
+      .container {
+        padding: 15px;
+      }
+      .recipe-card {
+        margin: 10px;
+      }
+    }
+    .hidden-button {
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script>
+    const { useState, useRef, useCallback } = React;
+
+    const RecipeCard = ({ recipe }) => {
+      const [stickers, setStickers] = useState([]);
+      const cardRef = useRef(null);
+      const downloadButtonRef = useRef(null);
+
+      const stickerImages = [
+        'https://www.pngall.com/wp-content/uploads/2016/04/Heart-PNG-Clipart.png',
+        'https://www.pngall.com/wp-content/uploads/2016/04/Star-PNG.png',
+        'https://www.pngall.com/wp-content/uploads/2016/06/Flower-PNG-Image.png',
+      ];
+
+      const addSticker = useCallback((e) => {
+        if (!cardRef.current) return;
+        const rect = cardRef.current.getBoundingClientRect();
+        const randomSticker = stickerImages[Math.floor(Math.random() * stickerImages.length)];
+        const sticker = {
+          id: Date.now(),
+          src: randomSticker,
+          x: e.clientX - rect.left - 25,
+          y: e.clientY - rect.top - 25,
+        };
+        setStickers(prev => [...prev, sticker]);
+      }, []);
+
+      const dragSticker = useCallback((e, id) => {
+        if (!cardRef.current || e.clientX === 0 || e.clientY === 0) return;
+        const rect = cardRef.current.getBoundingClientRect();
+        const newX = e.clientX - rect.left - 25;
+        const newY = e.clientY - rect.top - 25;
+        const boundedX = Math.max(0, Math.min(newX, rect.width - 50));
+        const boundedY = Math.max(0, Math.min(newY, rect.height - 50));
+        setStickers(prev => prev.map(sticker =>
+          sticker.id === id ? { ...sticker, x: boundedX, y: boundedY } : sticker
+        ));
+      }, []);
+
+      const downloadRecipeImage = useCallback(() => {
+        if (!cardRef.current || !downloadButtonRef.current) return;
+        downloadButtonRef.current.classList.add('hidden-button');
+        html2canvas(cardRef.current, { scale: 2 }).then(canvas => {
+          const link = document.createElement('a');
+          link.download = `${recipe.title.replace(/\s+/g, '_') || 'recipe'}_card.png`;
+          link.href = canvas.toDataURL('image/png');
+          link.click();
+          downloadButtonRef.current.classList.remove('hidden-button');
+        });
+      }, [recipe]);
+
+      const ingredientsList = recipe.ingredients
+        .split(/[\n,]+/)
+        .map(item => item.trim())
+        .filter(item => item);
+      const instructionsList = recipe.instructions
+        .split(/[\n,]+/)
+        .map(item => item.trim())
+        .filter(item => item);
+
+      return React.createElement(
+        'div',
+        { ref: cardRef, className: 'recipe-card relative', onClick: addSticker },
+        React.createElement('div', { className: 'ribbon' }, 'Yummy!'),
+        React.createElement('h2', { className: 'text-3xl font-bold text-pink-700 mb-4 font-[\'Comic_Neue\']' }, recipe.title),
+        recipe.image && React.createElement('img', {
+          src: recipe.image,
+          alt: recipe.title,
+          className: 'recipe-image'
+        }),
+        React.createElement(
+          'div',
+          { className: 'text-gray-700 mb-2 text-lg' },
+          React.createElement('strong', null, 'Ingredients:'),
+          React.createElement(
+            'ul',
+            { className: 'list-disc list-inside ml-4' },
+            ingredientsList.map((item, idx) =>
+              React.createElement('li', { key: idx }, item)
+            )
+          )
+        ),
+        React.createElement(
+          'div',
+          { className: 'text-gray-700 text-lg' },
+          React.createElement('strong', null, 'Instructions:'),
+          React.createElement(
+            'ol',
+            { className: 'list-decimal list-inside ml-4' },
+            instructionsList.map((item, idx) =>
+              React.createElement('li', { key: idx }, item)
+            )
+          )
+        ),
+        React.createElement(
+          'div',
+          { className: 'mt-4 flex justify-center' },
+          React.createElement(
+            'button',
+            {
+              ref: downloadButtonRef,
+              className: 'bg-pink-500 text-white px-4 py-2 rounded-lg hover:bg-pink-600',
+              onClick: (e) => { e.stopPropagation(); downloadRecipeImage(); }
+            },
+            'Download Recipe'
+          )
+        ),
+        stickers.map(sticker =>
+          React.createElement('img', {
+            key: sticker.id,
+            src: sticker.src,
+            className: 'sticker',
+            style: { left: `${sticker.x}px`, top: `${sticker.y}px` },
+            draggable: true,
+            onDrag: e => dragSticker(e, sticker.id),
+            onDragEnd: e => dragSticker(e, sticker.id)
+          })
+        )
+      );
+    };
+
+    const RecipeGeneratorApp = () => {
+      const [recipe, setRecipe] = useState(null);
+      const [title, setTitle] = useState('');
+      const [ingredients, setIngredients] = useState('');
+      const [instructions, setInstructions] = useState('');
+      const [image, setImage] = useState(null);
+      const [error, setError] = useState('');
+
+      const handleImageChange = (e) => {
+        const file = e.target.files[0];
+        if (file) {
+          if (file.size > 5 * 1024 * 1024) {
+            setError('Image size must be less than 5MB');
+            return;
+          }
+          const reader = new FileReader();
+          reader.onloadend = () => {
+            setImage(reader.result);
+            setError('');
+          };
+          reader.readAsDataURL(file);
+        }
+      };
+
+      const generateRecipe = () => {
+        if (!title.trim() || !ingredients.trim() || !instructions.trim()) {
+          setError('Please fill in all fields');
+          return;
+        }
+        setRecipe({ title, ingredients, instructions, image });
+        setError('');
+      };
+
+      const clearForm = () => {
+        setRecipe(null);
+        setTitle('');
+        setIngredients('');
+        setInstructions('');
+        setImage(null);
+        setError('');
+      };
+
+      return React.createElement(
+        'div',
+        { className: 'container' },
+        React.createElement(
+          'div',
+          { className: 'flex flex-col items-center' },
+          React.createElement('h1', { className: 'text-5xl font-bold text-pink-800 mb-8 font-[\'Comic_Neue\']' }, 'Recipe Generator'),
+          React.createElement(
+            'div',
+            { className: 'mb-8 w-full max-w-md px-6' },
+            error && React.createElement('p', { className: 'text-red-500 mb-3 text-center' }, error),
+            React.createElement('input', {
+              type: 'text',
+              placeholder: 'Recipe Title',
+              value: title,
+              onChange: (e) => setTitle(e.target.value),
+              className: 'w-full p-3 mb-3 border-2 rounded-lg text-lg'
+            }),
+            React.createElement('input', {
+              type: 'file',
+              accept: 'image/*',
+              onChange: handleImageChange,
+              className: 'w-full p-3 mb-3 border-2 rounded-lg text-lg'
+            }),
+            React.createElement('textarea', {
+              placeholder: 'Ingredients (e.g., 1 cup sugar, 2 eggs)',
+              value: ingredients,
+              onChange: (e) => setIngredients(e.target.value),
+              className: 'w-full p-3 mb-3 border-2 rounded-lg text-lg',
+              rows: 4
+            }),
+            React.createElement('textarea', {
+              placeholder: 'Instructions (e.g., Mix and bake at 350°F)',
+              value: instructions,
+              onChange: (e) => setInstructions(e.target.value),
+              className: 'w-full p-3 mb-3 border-2 rounded-lg text-lg',
+              rows: 4
+            }),
+            React.createElement(
+              'div',
+              { className: 'flex space-x-4' },
+              React.createElement(
+                'button',
+                {
+                  onClick: generateRecipe,
+                  className: 'w-full bg-pink-500 text-white p-3 rounded-lg hover:bg-pink-600 text-lg'
+                },
+                'Generate Recipe'
+              ),
+              React.createElement(
+                'button',
+                {
+                  onClick: clearForm,
+                  className: 'w-full bg-gray-500 text-white p-3 rounded-lg hover:bg-gray-600 text-lg'
+                },
+                'Clear'
+              )
+            )
+          ),
+          recipe && React.createElement(RecipeCard, { recipe })
+        )
+      );
+    };
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(React.createElement(RecipeGeneratorApp));
+  </script>
+</body>
+</html>
